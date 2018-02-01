@@ -1,0 +1,171 @@
+# Week 4 Project - Practical Machine Learning - Prediction Assignment
+### Nagaraju A
+### Januaray 31, 2018
+
+## Practical Machine Learning Project : Prediction Assignment Writeup
+
+## Human Activity Recognition
+
+* Human Activity Recognition - HAR - has emerged as a key research area in the last years and is gaining increasing attention by the pervasive computing research community (see picture below, that illustrates the increasing number of publications in HAR with wearable accelerometers), especially for the development of context-aware systems. There are many potential applications for HAR, like: elderly monitoring, life log systems for monitoring energy expenditure and for supporting weight-loss programs, and digital assistants for weight lifting exercises. 
+
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz55kjniTbw
+
+## 2. Background
+* Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz3xsbS5bVX 
+
+## 3. Dataset Overview
+* The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Load required libraries
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+setwd("D:/TechnicalStack/DataScience/DS_JHU/PML")
+
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(corrplot)
+library(knitr)
+
+```
+
+## Data Loading and Cleaning
+* The next step is loading the dataset from the URL provided above. The training dataset is then partinioned in 2 to create a Training set (70% of the data) for the modeling process and a Test set (with the remaining 30%) for the validations. The testing dataset is not changed and will only be used for the quiz results generation.
+
+```{r, include=TRUE}
+# set the working directory
+rm(list=ls()) # remove exisitng objects to free up memory
+setwd("D:/TechnicalStack/DataScience/DS_JHU/PML")
+
+# Load the datasets
+training <- read.csv("pml-training.csv", header = TRUE, 
+                     na.strings = c('#DIV/0!','NA'))
+testing  <- read.csv("pml-testing.csv" , header = TRUE,
+                     na.strings = c('#DIV/0!', 'NA'))
+
+dim(training); dim(testing);
+
+# Get all the columns with full NA values
+  
+length(names(training[colSums(is.na(training)) == 0])) # 60 features
+length(names(testing[colSums(is.na(testing)) == 0]))  # 60 features
+```
+
+## remove variables that are mostly NA from both datasets
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+trainNA <- colSums(is.na(training)) < (0.90*dim(training)[1])
+
+testNA <- colSums(is.na(testing)) < (0.90*dim(testing)[1])
+
+# train_var <- data.frame(features = names(trainNA))
+# test_var <- data.frame(features = names(testNA))
+# 
+# # Considet the variables which are common in both the datasets
+# variables <- merge(x = train_var, y = test_var, by = "features")
+
+TrainingSet <- training[, trainNA]
+TestingSet <- testing[, testNA]
+dim(TrainingSet); dim(TestingSet)
+```
+
+## remove identification variables (columns 1 to 5)
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+TrainingSet <- TrainingSet[, -(1:5)]
+TestingSet <- TestingSet[, -(1:5)]
+dim(TrainingSet); dim(TestingSet)
+
+```
+
+
+## Partitioning the Dataset
+
+* Split training data set into train and test datasets to train the model and check the accuracy 
+* split with cases variable 60% - train, 40% - test
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+set.seed(12345)
+inTrain <- createDataPartition(TrainingSet$classe, p=0.6, list=FALSE)
+train <- TrainingSet[inTrain,]
+test <- TrainingSet[-inTrain,]
+
+dim(train); dim(test);
+```
+
+## Prediction Model Building with Decision Tree
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+modFitDT <- rpart(classe ~ ., 
+                  data=train, 
+                  method="class",
+                  control = rpart.control(cp = 0.001))
+
+varImp(modFitDT)
+printcp(modFitDT)
+plotcp(modFitDT)
+fancyRpartPlot(modFitDT)
+```
+
+# predicting Test dataset with Decision Tree model
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+predictDT <- predict(modFitDT, newdata=test, type="class")
+confMatDT <- confusionMatrix(predictDT, test$classe)
+confMatDT
+```
+
+
+## Prediction Model Building with Random Forest
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+set.seed(12345)
+controlRF <- trainControl(method="cv", number=3)
+modFitRF <- train(classe ~ ., 
+                  data=train, 
+                  method="rf",
+                  trControl=controlRF)
+modFitRF$finalModel
+
+```
+
+# predict the Test dataset with Random Forest Model
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+predictRF <- predict(modFitRF, newdata=test)
+confMatRF <- confusionMatrix(predictRF, test$classe)
+confMatRF
+```
+
+## Predicting testing dataset with the Random Forest Model
+
+```{r, include=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+
+predict_testing <- predict(modFitRF, newdata=testing)
+predict_testing
+```
+
